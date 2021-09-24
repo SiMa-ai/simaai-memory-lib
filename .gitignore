@@ -1,0 +1,4 @@
+*.o
+*.d
+libsimaaimem.so
+simaai_mem_test
