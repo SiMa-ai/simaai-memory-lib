@@ -15,6 +15,11 @@
 #include <unistd.h>
 
 #define SIMAAI_ALLOCATOR	"/dev/simaai-mem"
+#define SIMAAI_OCM_ALLOCATOR	"/dev/simaai-ocm"
+#define SIMAAI_DMS0_ALLOCATOR	"/dev/simaai-dms0"
+#define SIMAAI_DMS1_ALLOCATOR	"/dev/simaai-dms1"
+#define SIMAAI_DMS2_ALLOCATOR	"/dev/simaai-dms2"
+#define SIMAAI_DMS3_ALLOCATOR	"/dev/simaai-dms3"
 
 struct simaai_memory_t {
 	/* Allocator file descriptor */
@@ -39,14 +44,36 @@ simaai_memory_t *simaai_memory_alloc(unsigned int size, int target)
 	if (!memory)
 		return NULL;
 
-	memory->fd = open(SIMAAI_ALLOCATOR, O_RDWR | O_SYNC);
+	switch(target) {
+	case SIMAAI_MEM_TARGET_OCM:
+		memory->fd = open(SIMAAI_OCM_ALLOCATOR, O_RDWR | O_SYNC);
+		break;
+	case SIMAAI_MEM_TARGET_DMS0:
+		memory->fd = open(SIMAAI_DMS0_ALLOCATOR, O_RDWR | O_SYNC);
+		break;
+	case SIMAAI_MEM_TARGET_DMS1:
+		memory->fd = open(SIMAAI_DMS1_ALLOCATOR, O_RDWR | O_SYNC);
+		break;
+	case SIMAAI_MEM_TARGET_DMS2:
+		memory->fd = open(SIMAAI_DMS2_ALLOCATOR, O_RDWR | O_SYNC);
+		break;
+	case SIMAAI_MEM_TARGET_DMS3:
+		memory->fd = open(SIMAAI_DMS3_ALLOCATOR, O_RDWR | O_SYNC);
+		break;
+	default:
+		memory->fd = open(SIMAAI_ALLOCATOR, O_RDWR | O_SYNC);
+		break;
+	}
+
 	if (memory->fd < 0) {
 		free(memory);
 		return NULL;
 	}
 
-	if (target & (SIMAAI_MEM_TARGET_EV74 | SIMAAI_MEM_TARGET_M4))
-		ret = ioctl(memory->fd, SIMAAI_IOC_MEM_ALLOC_DMA32, &size);
+	if (target & (SIMAAI_MEM_TARGET_EV74 | SIMAAI_MEM_TARGET_M4 | SIMAAI_MEM_TARGET_OCM
+			| SIMAAI_MEM_TARGET_DMS0 | SIMAAI_MEM_TARGET_DMS1
+			| SIMAAI_MEM_TARGET_DMS2 | SIMAAI_MEM_TARGET_DMS3))
+		ret = ioctl(memory->fd, SIMAAI_IOC_MEM_ALLOC_COHERENT, &size);
 	else
 		ret = ioctl(memory->fd, SIMAAI_IOC_MEM_ALLOC_GENERIC, &size);
 
@@ -73,12 +100,31 @@ simaai_memory_t *simaai_memory_attach(unsigned int id)
 {
 	simaai_memory_t *memory;
 	struct simaai_memory_info info = {0};
-
 	memory = calloc(1, sizeof(*memory));
 	if (!memory)
 		return NULL;
 
-	memory->fd = open(SIMAAI_ALLOCATOR, O_RDWR | O_SYNC);
+	switch(SIMAAI_GET_TARGET_MASK(id)) {
+	case SIMAAI_MEM_TARGET_OCM:
+		memory->fd = open(SIMAAI_OCM_ALLOCATOR, O_RDWR | O_SYNC);
+		break;
+	case SIMAAI_MEM_TARGET_DMS0:
+		memory->fd = open(SIMAAI_DMS0_ALLOCATOR, O_RDWR | O_SYNC);
+		break;
+	case SIMAAI_MEM_TARGET_DMS1:
+		memory->fd = open(SIMAAI_DMS1_ALLOCATOR, O_RDWR | O_SYNC);
+		break;
+	case SIMAAI_MEM_TARGET_DMS2:
+		memory->fd = open(SIMAAI_DMS2_ALLOCATOR, O_RDWR | O_SYNC);
+		break;
+	case SIMAAI_MEM_TARGET_DMS3:
+		memory->fd = open(SIMAAI_DMS3_ALLOCATOR, O_RDWR | O_SYNC);
+		break;
+	default:
+		memory->fd = open(SIMAAI_ALLOCATOR, O_RDWR | O_SYNC);
+		break;
+	}
+
 	if (memory->fd < 0) {
 		free(memory);
 		return NULL;

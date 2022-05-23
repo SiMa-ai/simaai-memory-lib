@@ -30,6 +30,11 @@ typedef struct simaai_memory_t simaai_memory_t;
 #define SIMAAI_MEM_TARGET_M4		(1 << 2)
 #define SIMAAI_MEM_TARGET_EV74		(1 << 3)
 #define SIMAAI_MEM_TARGET_EM4		(1 << 4)
+#define SIMAAI_MEM_TARGET_OCM		(1 << 5)
+#define SIMAAI_MEM_TARGET_DMS0	(1 << 6)
+#define SIMAAI_MEM_TARGET_DMS1	(1 << 7)
+#define SIMAAI_MEM_TARGET_DMS2	(1 << 8)
+#define SIMAAI_MEM_TARGET_DMS3	(1 << 9)
 
 #define SIMAAI_MEM_TARGET_ALL		(SIMAAI_MEM_TARGET_GENERIC | \
 					 SIMAAI_MEM_TARGET_MOSAIC | \

@@ -16,12 +16,14 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <time.h>
 
 #include "simaai_memory.h"
 
 struct args {
 	char chr;
 	long int size;
+	char target;
 };
 
 static int parse_args(const int argc, char *const argv[], struct args *args)
@@ -31,6 +33,7 @@ static int parse_args(const int argc, char *const argv[], struct args *args)
 		{ "help",   no_argument,       NULL, 'h' },
 		{ "char",   required_argument, NULL, 'c' },
 		{ "size",   required_argument, NULL, 's' },
+		{ "target",   required_argument, NULL, 't' },
 		{ 0,        0,                 0,     0  }
 	};
 	const char usage[] =
@@ -39,13 +42,14 @@ static int parse_args(const int argc, char *const argv[], struct args *args)
 		"\n"
 		"  -h, --help         display this help and exit\n"
 		"  -c, --char         a symbol to exchange via shared memory\n"
-		"  -s, --size=SIZE    bytes to write to/read from mapped memory buffer\n";
+		"  -s, --size=SIZE    bytes to write to/read from mapped memory buffer\n"
+		"  -t, --target=[0..5]    target to allocate memory from, CMA (0) or OCM (1) DMS0-3 (2-5) \n";
 	int option_index;
 	int c;
 
 	while (1) {
 		option_index = 0;
-		c = getopt_long(argc, argv, "hc:s:", long_options, &option_index);
+		c = getopt_long(argc, argv, "hc:s:t:", long_options, &option_index);
 
 		if (c == -1)
 			break;
@@ -68,6 +72,13 @@ static int parse_args(const int argc, char *const argv[], struct args *args)
 				return -1;
 			}
 			break;
+		case 't':
+			args->target = strtol(optarg, NULL, 10);
+			if ((args->target < 0) || (args->target > 5)) {
+				fprintf(stderr, "Invalid target\n");
+				return -1;
+			}
+			break;
 		default:
 			fprintf(stderr, usage, basename(filename));
 			return -1;
@@ -87,14 +98,24 @@ static void memory_info_wrapper(simaai_memory_t *buf)
 		simaai_memory_get_phys(buf));
 }
 
+static int id_to_target [] = {
+	SIMAAI_MEM_TARGET_GENERIC,
+	SIMAAI_MEM_TARGET_OCM,
+	SIMAAI_MEM_TARGET_DMS0,
+	SIMAAI_MEM_TARGET_DMS1,
+	SIMAAI_MEM_TARGET_DMS2,
+	SIMAAI_MEM_TARGET_DMS3,
+};
+
 static void test_memory_wrapper(const struct args *args)
 {
 	simaai_memory_t *mem_out, *mem_in;
 	void *vaddr_out, *vaddr_in;
 	char *data;
+	clock_t start, end;
 
 	fprintf(stdout, "Allocate output memory\n");
-	mem_out = simaai_memory_alloc(args->size, SIMAAI_MEM_TARGET_GENERIC);
+	mem_out = simaai_memory_alloc(args->size, id_to_target[args->target]);
 	if (!mem_out) {
 		fprintf(stderr, "Output memory allocation failed: %s\n",
 			strerror(errno));
@@ -139,13 +160,21 @@ static void test_memory_wrapper(const struct args *args)
 
 	fprintf(stdout, "Write '%c' to the output memory %ld times\n",
 		args->chr, args->size);
+
+	start = clock();
 	memset(vaddr_out, args->chr, args->size);
+	end = clock();
+	fprintf(stdout, "time taken to write %f\n",((double)(end - start))/CLOCKS_PER_SEC);
 
 	fprintf(stdout, "Unmap output memory\n");
-	simaai_memory_unmap(mem_out);
 
+	simaai_memory_unmap(mem_out);
 	fprintf(stdout, "Read from input memory %zu symbols\n", args->size);
+
+	start = clock();
 	memcpy(data, vaddr_in, args->size);
+	end = clock();
+	fprintf(stdout, "time taken to read %f\n",((double)(end - start))/CLOCKS_PER_SEC);
 
 	fprintf(stdout, "Print first 10 symbols from shared memory\n");
 	int i;
