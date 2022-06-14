@@ -20,6 +20,7 @@
 #define SIMAAI_DMS1_ALLOCATOR	"/dev/simaai-dms1"
 #define SIMAAI_DMS2_ALLOCATOR	"/dev/simaai-dms2"
 #define SIMAAI_DMS3_ALLOCATOR	"/dev/simaai-dms3"
+#define SIMAAI_EV74_ALLOCATOR	"/dev/simaai-evmem"
 
 struct simaai_memory_t {
 	/* Allocator file descriptor */
@@ -59,6 +60,9 @@ simaai_memory_t *simaai_memory_alloc(unsigned int size, int target)
 		break;
 	case SIMAAI_MEM_TARGET_DMS3:
 		memory->fd = open(SIMAAI_DMS3_ALLOCATOR, O_RDWR | O_SYNC);
+		break;
+	case SIMAAI_MEM_TARGET_EV74:
+		memory->fd = open(SIMAAI_EV74_ALLOCATOR, O_RDWR | O_SYNC);
 		break;
 	default:
 		memory->fd = open(SIMAAI_ALLOCATOR, O_RDWR | O_SYNC);
@@ -119,6 +123,9 @@ simaai_memory_t *simaai_memory_attach(unsigned int id)
 		break;
 	case SIMAAI_MEM_TARGET_DMS3:
 		memory->fd = open(SIMAAI_DMS3_ALLOCATOR, O_RDWR | O_SYNC);
+		break;
+	case SIMAAI_MEM_TARGET_EV74:
+		memory->fd = open(SIMAAI_EV74_ALLOCATOR, O_RDWR | O_SYNC);
 		break;
 	default:
 		memory->fd = open(SIMAAI_ALLOCATOR, O_RDWR | O_SYNC);

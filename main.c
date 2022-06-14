@@ -43,7 +43,7 @@ static int parse_args(const int argc, char *const argv[], struct args *args)
 		"  -h, --help         display this help and exit\n"
 		"  -c, --char         a symbol to exchange via shared memory\n"
 		"  -s, --size=SIZE    bytes to write to/read from mapped memory buffer\n"
-		"  -t, --target=[0..5]    target to allocate memory from, CMA (0) or OCM (1) DMS0-3 (2-5) \n";
+		"  -t, --target=[0..6]    target to allocate memory from, CMA (0) or OCM (1) DMS0-3 (2-5) EV (6)\n";
 	int option_index;
 	int c;
 
@@ -74,7 +74,7 @@ static int parse_args(const int argc, char *const argv[], struct args *args)
 			break;
 		case 't':
 			args->target = strtol(optarg, NULL, 10);
-			if ((args->target < 0) || (args->target > 5)) {
+			if ((args->target < 0) || (args->target > 6)) {
 				fprintf(stderr, "Invalid target\n");
 				return -1;
 			}
@@ -105,6 +105,7 @@ static int id_to_target [] = {
 	SIMAAI_MEM_TARGET_DMS1,
 	SIMAAI_MEM_TARGET_DMS2,
 	SIMAAI_MEM_TARGET_DMS3,
+	SIMAAI_MEM_TARGET_EV74,
 };
 
 static void test_memory_wrapper(const struct args *args)
