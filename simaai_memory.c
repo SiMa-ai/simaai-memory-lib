@@ -108,23 +108,23 @@ simaai_memory_t *simaai_memory_attach(unsigned int id)
 	if (!memory)
 		return NULL;
 
-	switch(SIMAAI_GET_TARGET_MASK(id)) {
-	case SIMAAI_MEM_TARGET_OCM:
+	switch(SIMAAI_GET_TARGET_ALLOCATOR(id)) {
+	case SIMAAI_TARGET_ALLOCATOR_OCM:
 		memory->fd = open(SIMAAI_OCM_ALLOCATOR, O_RDWR | O_SYNC);
 		break;
-	case SIMAAI_MEM_TARGET_DMS0:
+	case SIMAAI_TARGET_ALLOCATOR_DMS0:
 		memory->fd = open(SIMAAI_DMS0_ALLOCATOR, O_RDWR | O_SYNC);
 		break;
-	case SIMAAI_MEM_TARGET_DMS1:
+	case SIMAAI_TARGET_ALLOCATOR_DMS1:
 		memory->fd = open(SIMAAI_DMS1_ALLOCATOR, O_RDWR | O_SYNC);
 		break;
-	case SIMAAI_MEM_TARGET_DMS2:
+	case SIMAAI_TARGET_ALLOCATOR_DMS2:
 		memory->fd = open(SIMAAI_DMS2_ALLOCATOR, O_RDWR | O_SYNC);
 		break;
-	case SIMAAI_MEM_TARGET_DMS3:
+	case SIMAAI_TARGET_ALLOCATOR_DMS3:
 		memory->fd = open(SIMAAI_DMS3_ALLOCATOR, O_RDWR | O_SYNC);
 		break;
-	case SIMAAI_MEM_TARGET_EV74:
+	case SIMAAI_TARGET_ALLOCATOR_EV74:
 		memory->fd = open(SIMAAI_EV74_ALLOCATOR, O_RDWR | O_SYNC);
 		break;
 	default:
