@@ -24,6 +24,7 @@ struct args {
 	char chr;
 	long int size;
 	char target;
+	unsigned int flags;
 };
 
 static int parse_args(const int argc, char *const argv[], struct args *args)
@@ -31,25 +32,29 @@ static int parse_args(const int argc, char *const argv[], struct args *args)
 	const char *filename = argv[0];
 	struct option long_options[] = {
 		{ "help",   no_argument,       NULL, 'h' },
-		{ "char",   required_argument, NULL, 'c' },
+		{ "value",  required_argument, NULL, 'v' },
 		{ "size",   required_argument, NULL, 's' },
-		{ "target",   required_argument, NULL, 't' },
+		{ "target", required_argument, NULL, 't' },
+		{ "cached", no_argument,       NULL, 'c' },
+		{ "readonly", no_argument,     NULL, 'r' },
 		{ 0,        0,                 0,     0  }
 	};
 	const char usage[] =
 		"Usage: %s [OPTION]\n"
 		"Verify SiMa.ai memory management device.\n"
 		"\n"
-		"  -h, --help         display this help and exit\n"
-		"  -c, --char         a symbol to exchange via shared memory\n"
-		"  -s, --size=SIZE    bytes to write to/read from mapped memory buffer\n"
-		"  -t, --target=[0..6]    target to allocate memory from, CMA (0) or OCM (1) DMS0-3 (2-5) EV (6)\n";
+		"  -h, --help          display this help and exit\n"
+		"  -v, --value=SYMBOL  a value of the symbol to exchange via shared memory\n"
+		"  -s, --size=SIZE     bytes to write to/read from mapped memory buffer\n"
+		"  -t, --target=[0..6] target to allocate memory from, CMA (0) or OCM (1) DMS0-3 (2-5) EV (6)\n"
+		"  -c, --cached        map memory as cached\n"
+		"  -r, --readonly      map memory as readonly\n";
 	int option_index;
 	int c;
 
 	while (1) {
 		option_index = 0;
-		c = getopt_long(argc, argv, "hc:s:t:", long_options, &option_index);
+		c = getopt_long(argc, argv, "hv:s:t:cr", long_options, &option_index);
 
 		if (c == -1)
 			break;
@@ -62,7 +67,7 @@ static int parse_args(const int argc, char *const argv[], struct args *args)
 			fprintf(stderr, usage, basename(filename));
 			return -1;
 			break;
-		case 'c':
+		case 'v':
 			args->chr = *optarg;
 			break;
 		case 's':
@@ -78,6 +83,12 @@ static int parse_args(const int argc, char *const argv[], struct args *args)
 				fprintf(stderr, "Invalid target\n");
 				return -1;
 			}
+			break;
+		case 'c':
+			args->flags |= SIMAAI_MEM_FLAG_CACHED;
+			break;
+		case 'r':
+			args->flags |= SIMAAI_MEM_FLAG_RDONLY;
 			break;
 		default:
 			fprintf(stderr, usage, basename(filename));
@@ -116,7 +127,10 @@ static void test_memory_wrapper(const struct args *args)
 	clock_t start, end;
 
 	fprintf(stdout, "Allocate output memory\n");
-	mem_out = simaai_memory_alloc(args->size, id_to_target[args->target]);
+	if (args->flags == SIMAAI_MEM_FLAG_DEFAULT)
+		mem_out = simaai_memory_alloc(args->size, id_to_target[args->target]);
+	else
+		mem_out = simaai_memory_alloc_flags(args->size, id_to_target[args->target], args->flags);
 	if (!mem_out) {
 		fprintf(stderr, "Output memory allocation failed: %s\n",
 			strerror(errno));
@@ -164,6 +178,8 @@ static void test_memory_wrapper(const struct args *args)
 
 	start = clock();
 	memset(vaddr_out, args->chr, args->size);
+	if(args->flags & SIMAAI_MEM_FLAG_CACHED)
+		simaai_memory_flush_cache(mem_out);
 	end = clock();
 	fprintf(stdout, "time taken to write %f\n",((double)(end - start))/CLOCKS_PER_SEC);
 
@@ -173,6 +189,8 @@ static void test_memory_wrapper(const struct args *args)
 	fprintf(stdout, "Read from input memory %zu symbols\n", args->size);
 
 	start = clock();
+	if(args->flags & SIMAAI_MEM_FLAG_CACHED)
+		simaai_memory_invalidate_cache(mem_out);
 	memcpy(data, vaddr_in, args->size);
 	end = clock();
 	fprintf(stdout, "time taken to read %f\n",((double)(end - start))/CLOCKS_PER_SEC);

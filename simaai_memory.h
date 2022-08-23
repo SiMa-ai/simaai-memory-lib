@@ -44,8 +44,13 @@ typedef struct simaai_memory_t simaai_memory_t;
 
 #define SIMAAI_MEM_TARGET_UNKNOWN	SIMAAI_MEM_TARGET_ALL
 
+#define SIMAAI_MEM_FLAG_CACHED	(1 << 0)
+#define SIMAAI_MEM_FLAG_RDONLY	(1 << 1)
+#define SIMAAI_MEM_FLAG_DEFAULT	(0x0)
+
 /**
- * @brief Allocate contiguous memory chunk of given size.
+ * @brief Allocate contiguous memory chunk of given size with default flags:
+ *        non-cachable, writable
  *
  * @param size Memory chunk size.
  * @param target Target memory type to allocate.
@@ -53,6 +58,17 @@ typedef struct simaai_memory_t simaai_memory_t;
  *         passed to simaai_memory_* functions or NULL in case of failure.
  */
 simaai_memory_t *simaai_memory_alloc(unsigned int size, int target);
+
+/**
+ * @brief Allocate contiguous memory chunk of given size with specific flags.
+ *
+ * @param size Memory chunk size.
+ * @param target Target memory type to allocate.
+ * @param flags Memory flags (cahceble, writable, etc).
+ * @return Allocated memory chunk context that can later be successfully
+ *         passed to simaai_memory_* functions or NULL in case of failure.
+ */
+simaai_memory_t *simaai_memory_alloc_flags(unsigned int size, int target, int flags);
 
 /**
  * @brief Attach to the previously allocated memory chunk by ID.
@@ -120,6 +136,46 @@ size_t simaai_memory_get_size(simaai_memory_t *memory);
  * @return An ID of the previously allocated memory chunk.
  */
 unsigned int simaai_memory_get_id(simaai_memory_t *memory);
+
+/**
+ * @brief Flush cache of the allocated memory chunk.
+ *        Should be called after the last write from the application cores.
+ *
+ * @param memory The memory chunk context.
+ * @return None.
+ */
+void simaai_memory_flush_cache(simaai_memory_t *memory);
+
+/**
+ * @brief Flush cache of the allocated memory chunk.
+ *        Should be called after the last write from the application cores.
+ *
+ * @param memory The memory chunk context.
+ * @param size Memory chunk offset inside the buffer to flush.
+ * @param size Memory chunk size to flush.
+ * @return None.
+ */
+void simaai_memory_flush_cache_part(simaai_memory_t *memory, unsigned int offset, unsigned int size);
+
+/**
+ * @brief Invalidate cache of the allocated memory chunk.
+ *        Should be called before the first read from the application cores.
+ *
+ * @param memory The memory chunk context.
+ * @return None.
+ */
+void simaai_memory_invalidate_cache(simaai_memory_t *memory);
+
+/**
+ * @brief Invalidate cache of the allocated memory chunk.
+ *        Should be called before the first read from the application cores.
+ *
+ * @param memory The memory chunk context.
+ * @param size Memory chunk offset inside the buffer to invalidate.
+ * @param size Memory chunk size to invalidate.
+ * @return None.
+ */
+void simaai_memory_invalidate_cache_part(simaai_memory_t *memory, unsigned int offset, unsigned int size);
 
 #ifdef __cplusplus
 }
