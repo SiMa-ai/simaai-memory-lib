@@ -6,7 +6,7 @@
 CC       = $(CROSS_COMPILE)gcc
 STRIP    = $(CROSS_COMPILE)strip
 DEPFLAGS = -MD
-CFLAGS   = -Wall -O2
+CFLAGS   = -Wall -O2 -I .
 
 # Library
 LIBNAME   = simaaimem
