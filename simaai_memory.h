@@ -25,22 +25,15 @@ typedef struct simaai_memory_t simaai_memory_t;
  * some targets operate only in 32 bit address space,
  * others could use arbitrary allocated memory regions.
  */
-#define SIMAAI_MEM_TARGET_GENERIC	(1 << 0)
-#define SIMAAI_MEM_TARGET_MOSAIC	(1 << 1)
-#define SIMAAI_MEM_TARGET_M4		(1 << 2)
-#define SIMAAI_MEM_TARGET_EV74		(1 << 3)
-#define SIMAAI_MEM_TARGET_EM4		(1 << 4)
-#define SIMAAI_MEM_TARGET_OCM		(1 << 5)
-#define SIMAAI_MEM_TARGET_DMS0	(1 << 6)
-#define SIMAAI_MEM_TARGET_DMS1	(1 << 7)
-#define SIMAAI_MEM_TARGET_DMS2	(1 << 8)
-#define SIMAAI_MEM_TARGET_DMS3	(1 << 9)
+#define SIMAAI_MEM_TARGET_GENERIC	(0)
+#define SIMAAI_MEM_TARGET_OCM		(1)
+#define SIMAAI_MEM_TARGET_DMS0		(2)
+#define SIMAAI_MEM_TARGET_DMS1		(3)
+#define SIMAAI_MEM_TARGET_DMS2		(4)
+#define SIMAAI_MEM_TARGET_DMS3		(5)
+#define SIMAAI_MEM_TARGET_EV74		(6)
 
-#define SIMAAI_MEM_TARGET_ALL		(SIMAAI_MEM_TARGET_GENERIC | \
-					 SIMAAI_MEM_TARGET_MOSAIC | \
-					 SIMAAI_MEM_TARGET_M4 | \
-					 SIMAAI_MEM_TARGET_EV74 | \
-					 SIMAAI_MEM_TARGET_EM4)
+#define SIMAAI_MEM_TARGET_ALL		(SIMAAI_MEM_TARGET_EV74)
 
 #define SIMAAI_MEM_TARGET_UNKNOWN	SIMAAI_MEM_TARGET_ALL
 
@@ -71,13 +64,13 @@ simaai_memory_t *simaai_memory_alloc(unsigned int size, int target);
 simaai_memory_t *simaai_memory_alloc_flags(unsigned int size, int target, int flags);
 
 /**
- * @brief Attach to the previously allocated memory chunk by ID.
+ * @brief Attach to the previously allocated memory chunk by physical address.
  *
- * @param id Memory chunk ID.
+ * @param phys_addr Physical address of buffer to attach.
  * @return Allocated memory chunk context that can later be successfully
  *         passed to simaai_memory_* functions or NULL in case of failure.
  */
-simaai_memory_t *simaai_memory_attach(unsigned int id);
+simaai_memory_t *simaai_memory_attach(uint64_t phys_addr);
 
 /**
  * @brief Free the previously allocated memory chunk.
@@ -122,6 +115,14 @@ void *simaai_memory_get_virt(simaai_memory_t *memory);
 uint64_t simaai_memory_get_phys(simaai_memory_t *memory);
 
 /**
+ * @brief Get the bus address of the previously allocated memory chunk.
+ *
+ * @param memory The memory chunk context.
+ * @return A memory chunk starting bus address.
+ */
+uint64_t simaai_memory_get_bus(simaai_memory_t *memory);
+
+/**
  * @brief Get the size of the allocated memory chunk.
  *
  * @param memory The memory chunk context.
@@ -130,12 +131,12 @@ uint64_t simaai_memory_get_phys(simaai_memory_t *memory);
 size_t simaai_memory_get_size(simaai_memory_t *memory);
 
 /**
- * @brief Get ID of the allocated memory chunk.
+ * @brief Get target hardware of the allocated memory chunk.
  *
  * @param memory The memory chunk context.
- * @return An ID of the previously allocated memory chunk.
+ * @return Memory chunk target hardware.
  */
-unsigned int simaai_memory_get_id(simaai_memory_t *memory);
+uint32_t simaai_memory_get_target(simaai_memory_t *memory);
 
 /**
  * @brief Flush cache of the allocated memory chunk.

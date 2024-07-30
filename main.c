@@ -103,21 +103,10 @@ static int parse_args(const int argc, char *const argv[], struct args *args)
 static void memory_info_wrapper(simaai_memory_t *buf)
 {
 	fprintf(stdout,
-		"Buffer: id = %u size = %zu, phys address = 0x%0lx\n",
-		simaai_memory_get_id(buf),
+		"Buffer: size = %zu, phys address = 0x%0lx\n",
 		simaai_memory_get_size(buf),
 		simaai_memory_get_phys(buf));
 }
-
-static int id_to_target [] = {
-	SIMAAI_MEM_TARGET_GENERIC,
-	SIMAAI_MEM_TARGET_OCM,
-	SIMAAI_MEM_TARGET_DMS0,
-	SIMAAI_MEM_TARGET_DMS1,
-	SIMAAI_MEM_TARGET_DMS2,
-	SIMAAI_MEM_TARGET_DMS3,
-	SIMAAI_MEM_TARGET_EV74,
-};
 
 static void test_memory_wrapper(const struct args *args)
 {
@@ -128,9 +117,9 @@ static void test_memory_wrapper(const struct args *args)
 
 	fprintf(stdout, "Allocate output memory\n");
 	if (args->flags == SIMAAI_MEM_FLAG_DEFAULT)
-		mem_out = simaai_memory_alloc(args->size, id_to_target[args->target]);
+		mem_out = simaai_memory_alloc(args->size, args->target);
 	else
-		mem_out = simaai_memory_alloc_flags(args->size, id_to_target[args->target], args->flags);
+		mem_out = simaai_memory_alloc_flags(args->size, args->target, args->flags);
 	if (!mem_out) {
 		fprintf(stderr, "Output memory allocation failed: %s\n",
 			strerror(errno));
@@ -140,7 +129,7 @@ static void test_memory_wrapper(const struct args *args)
 	}
 
 	fprintf(stdout, "Attach to the input memory\n");
-	mem_in = simaai_memory_attach(simaai_memory_get_id(mem_out));
+	mem_in = simaai_memory_attach(simaai_memory_get_phys(mem_out));
 	if (!mem_in) {
 		fprintf(stderr, "Attachment to the input memory failed: %s\n",
 			strerror(errno));

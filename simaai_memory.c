@@ -15,31 +15,26 @@
 #include <unistd.h>
 
 #define SIMAAI_ALLOCATOR	"/dev/simaai-mem"
-#define SIMAAI_OCM_ALLOCATOR	"/dev/simaai-ocm"
-#define SIMAAI_DMS0_ALLOCATOR	"/dev/simaai-dms0"
-#define SIMAAI_DMS1_ALLOCATOR	"/dev/simaai-dms1"
-#define SIMAAI_DMS2_ALLOCATOR	"/dev/simaai-dms2"
-#define SIMAAI_DMS3_ALLOCATOR	"/dev/simaai-dms3"
-#define SIMAAI_EV74_ALLOCATOR	"/dev/simaai-evmem"
 #define SIMAAI_CACHE_LINE_SIZE	(64)
 
 struct simaai_memory_t {
-	/* Allocator file descriptor */
-	int fd;
 	/* Virtual address of memory chunk */
 	void *vaddr;
 	/* Size of memory chunk */
 	unsigned int size;
-	/* ID of memory chunk assigned by the allocator */
-	unsigned int id;
 	/* Physical address of the memory chunk */
 	uint64_t phys_addr;
+	/* Bus address of the memory chunk */
+	uint64_t bus_addr;
+	/* Target allocation hardware */
+	uint64_t target;
 };
+
+static int fd = -1;
 
 simaai_memory_t *simaai_memory_alloc_flags(unsigned int size, int target, int flags)
 {
 	simaai_memory_t *memory;
-	struct simaai_memory_info info = {0};
 	struct simaai_alloc_args alloc_args = {0};
 	int ret;
 
@@ -47,59 +42,28 @@ simaai_memory_t *simaai_memory_alloc_flags(unsigned int size, int target, int fl
 	if (!memory)
 		return NULL;
 
-	switch(target) {
-	case SIMAAI_MEM_TARGET_OCM:
-		memory->fd = open(SIMAAI_OCM_ALLOCATOR, O_RDWR | O_SYNC);
-		break;
-	case SIMAAI_MEM_TARGET_DMS0:
-		memory->fd = open(SIMAAI_DMS0_ALLOCATOR, O_RDWR | O_SYNC);
-		break;
-	case SIMAAI_MEM_TARGET_DMS1:
-		memory->fd = open(SIMAAI_DMS1_ALLOCATOR, O_RDWR | O_SYNC);
-		break;
-	case SIMAAI_MEM_TARGET_DMS2:
-		memory->fd = open(SIMAAI_DMS2_ALLOCATOR, O_RDWR | O_SYNC);
-		break;
-	case SIMAAI_MEM_TARGET_DMS3:
-		memory->fd = open(SIMAAI_DMS3_ALLOCATOR, O_RDWR | O_SYNC);
-		break;
-	case SIMAAI_MEM_TARGET_EV74:
-		memory->fd = open(SIMAAI_EV74_ALLOCATOR, O_RDWR | O_SYNC);
-		break;
-	default:
-		memory->fd = open(SIMAAI_ALLOCATOR, O_RDWR | O_SYNC);
-		break;
-	}
+	if(fd < 0)
+		fd = open(SIMAAI_ALLOCATOR, O_RDWR | O_SYNC);
 
-	if (memory->fd < 0) {
+	if (fd < 0) {
 		free(memory);
 		return NULL;
 	}
 
 	alloc_args.size = size;
 	alloc_args.flags = flags;
-	if (target & (SIMAAI_MEM_TARGET_EV74 | SIMAAI_MEM_TARGET_M4 | SIMAAI_MEM_TARGET_OCM
-			| SIMAAI_MEM_TARGET_DMS0 | SIMAAI_MEM_TARGET_DMS1
-			| SIMAAI_MEM_TARGET_DMS2 | SIMAAI_MEM_TARGET_DMS3))
-		ret = ioctl(memory->fd, SIMAAI_IOC_MEM_ALLOC_COHERENT, &alloc_args);
-	else
-		ret = ioctl(memory->fd, SIMAAI_IOC_MEM_ALLOC_GENERIC, &alloc_args);
+	alloc_args.target = target;
+	ret = ioctl(fd, SIMAAI_IOC_MEM_ALLOC_COHERENT, &alloc_args);
 
 	if (ret < 0) {
-		close(memory->fd);
 		free(memory);
 		return NULL;
 	}
 
-	if (ioctl(memory->fd, SIMAAI_IOC_MEM_INFO, &info) < 0) {
-		close(memory->fd);
-		free(memory);
-		return NULL;
-	}
-
-	memory->size = info.size;
-	memory->id = info.id;
-	memory->phys_addr = info.phys_addr;
+	memory->target = target;
+	memory->size = alloc_args.size;
+	memory->phys_addr = alloc_args.phys_addr;
+	memory->bus_addr = alloc_args.bus_addr;
 
 	return memory;
 }
@@ -109,7 +73,7 @@ simaai_memory_t *simaai_memory_alloc(unsigned int size, int target)
 	return simaai_memory_alloc_flags(size, target, SIMAAI_MEM_FLAG_DEFAULT);
 }
 
-simaai_memory_t *simaai_memory_attach(unsigned int id)
+simaai_memory_t *simaai_memory_attach(uint64_t phys_addr)
 {
 	simaai_memory_t *memory;
 	struct simaai_memory_info info = {0};
@@ -117,63 +81,46 @@ simaai_memory_t *simaai_memory_attach(unsigned int id)
 	if (!memory)
 		return NULL;
 
-	switch(SIMAAI_GET_TARGET_ALLOCATOR(id)) {
-	case SIMAAI_TARGET_ALLOCATOR_OCM:
-		memory->fd = open(SIMAAI_OCM_ALLOCATOR, O_RDWR | O_SYNC);
-		break;
-	case SIMAAI_TARGET_ALLOCATOR_DMS0:
-		memory->fd = open(SIMAAI_DMS0_ALLOCATOR, O_RDWR | O_SYNC);
-		break;
-	case SIMAAI_TARGET_ALLOCATOR_DMS1:
-		memory->fd = open(SIMAAI_DMS1_ALLOCATOR, O_RDWR | O_SYNC);
-		break;
-	case SIMAAI_TARGET_ALLOCATOR_DMS2:
-		memory->fd = open(SIMAAI_DMS2_ALLOCATOR, O_RDWR | O_SYNC);
-		break;
-	case SIMAAI_TARGET_ALLOCATOR_DMS3:
-		memory->fd = open(SIMAAI_DMS3_ALLOCATOR, O_RDWR | O_SYNC);
-		break;
-	case SIMAAI_TARGET_ALLOCATOR_EV74:
-		memory->fd = open(SIMAAI_EV74_ALLOCATOR, O_RDWR | O_SYNC);
-		break;
-	default:
-		memory->fd = open(SIMAAI_ALLOCATOR, O_RDWR | O_SYNC);
-		break;
-	}
+	if(fd < 0)
+		fd = open(SIMAAI_ALLOCATOR, O_RDWR | O_SYNC);
 
-	if (memory->fd < 0) {
+	if (fd < 0) {
 		free(memory);
 		return NULL;
 	}
 
-	if (ioctl(memory->fd, SIMAAI_IOC_MEM_GET, &id) < 0) {
-		close(memory->fd);
+	info.phys_addr = phys_addr;
+	if (ioctl(fd, SIMAAI_IOC_MEM_INFO, &info) < 0) {
 		free(memory);
 		return NULL;
 	}
 
-	if (ioctl(memory->fd, SIMAAI_IOC_MEM_INFO, &info) < 0) {
-		close(memory->fd);
-		free(memory);
-		return NULL;
-	}
-
+	memory->target = info.target;
 	memory->size = info.size;
-	memory->id = info.id;
 	memory->phys_addr = info.phys_addr;
+	memory->bus_addr = info.bus_addr;
 
 	return memory;
 }
 
 void simaai_memory_free(simaai_memory_t *memory)
 {
+	struct simaai_free_args free_args = {0};
+
 	assert(memory);
+
+	if(fd < 0)
+		fd = open(SIMAAI_ALLOCATOR, O_RDWR | O_SYNC);
+
+	if (fd < 0) {
+		return;
+	}
 
 	if (memory->vaddr)
 		munmap(memory->vaddr, memory->size);
 
-	ioctl(memory->fd, SIMAAI_IOC_MEM_FREE);
-	close(memory->fd);
+	free_args.phys_addr = memory->phys_addr;
+	ioctl(fd, SIMAAI_IOC_MEM_FREE, &free_args);
 	free(memory);
 }
 
@@ -181,8 +128,15 @@ void *simaai_memory_map(simaai_memory_t *memory)
 {
 	assert(memory);
 
+	if(fd < 0)
+		fd = open(SIMAAI_ALLOCATOR, O_RDWR | O_SYNC);
+
+	if (fd < 0) {
+		return NULL;
+	}
+
 	void *vaddr = mmap(NULL, memory->size, PROT_READ | PROT_WRITE,
-			   MAP_SHARED, memory->fd, 0);
+			   MAP_SHARED, fd,  memory->phys_addr);
 
 	if (vaddr == MAP_FAILED)
 		vaddr = NULL;
@@ -219,6 +173,13 @@ uint64_t simaai_memory_get_phys(simaai_memory_t *memory)
 	return memory->phys_addr;
 }
 
+uint64_t simaai_memory_get_bus(simaai_memory_t *memory)
+{
+	assert(memory);
+
+	return memory->bus_addr;
+}
+
 size_t simaai_memory_get_size(simaai_memory_t *memory)
 {
 	assert(memory);
@@ -226,11 +187,11 @@ size_t simaai_memory_get_size(simaai_memory_t *memory)
 	return memory->size;
 }
 
-unsigned int simaai_memory_get_id(simaai_memory_t *memory)
+uint32_t simaai_memory_get_target(simaai_memory_t *memory)
 {
 	assert(memory);
 
-	return memory->id;
+	return memory->target;
 }
 
 static void simaai_memory_exec_op_cvac(uint64_t start, uint64_t size)
@@ -267,9 +228,9 @@ static void simaai_memory_op_cache(simaai_memory_t *memory,
 		size = memory->size - offset;
 
 	if (op == 'c')
-		simaai_memory_exec_op_cvac(memory->vaddr + offset, size);
+		simaai_memory_exec_op_cvac((uint64_t)(memory->vaddr) + offset, size);
 	else if (op == 'i')
-		simaai_memory_exec_op_civac(memory->vaddr + offset, size);
+		simaai_memory_exec_op_civac((uint64_t)(memory->vaddr) + offset, size);
 }
 
 void simaai_memory_flush_cache(simaai_memory_t *memory)
