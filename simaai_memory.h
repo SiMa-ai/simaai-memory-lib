@@ -31,7 +31,7 @@ typedef struct simaai_memory_t simaai_memory_t;
 #define SIMAAI_MEM_TARGET_DMS1		(3)
 #define SIMAAI_MEM_TARGET_DMS2		(4)
 #define SIMAAI_MEM_TARGET_DMS3		(5)
-#define SIMAAI_MEM_TARGET_EV74		(6)
+#define SIMAAI_MEM_TARGET_EV74		(SIMAAI_MEM_TARGET_GENERIC) /* relocated to target generic */
 
 #define SIMAAI_MEM_TARGET_ALL		(SIMAAI_MEM_TARGET_EV74)
 
@@ -57,11 +57,40 @@ simaai_memory_t *simaai_memory_alloc(unsigned int size, int target);
  *
  * @param size Memory chunk size.
  * @param target Target memory type to allocate.
- * @param flags Memory flags (cahceble, writable, etc).
+ * @param flags Memory flags (cacheable, writable, etc).
  * @return Allocated memory chunk context that can later be successfully
  *         passed to simaai_memory_* functions or NULL in case of failure.
  */
 simaai_memory_t *simaai_memory_alloc_flags(unsigned int size, int target, int flags);
+
+
+/**
+ * @brief Allocate contiguous memory chunk of given sizes with default flags:
+ *        non-cachable, writable
+ *
+ * @param segments array of different segment size to be allocated
+ * @param num_of_segments size of the segment_size array
+ * @param target Target memory type to allocate.
+ * @return array of simaai_memory_t pointer, with size of the array equal to num_of_segments
+               or NULL in case of failure. each pointer represents the segment allocated from segment_size
+               array.
+ */
+simaai_memory_t **simaai_memory_alloc_segments(uint32_t *segments,
+       uint32_t num_of_segments, int target);
+
+/**
+ * @brief Allocate contiguous memory chunk of given sizes with specific flags
+ *
+ * @param segment_size array of different segment size to be allocated
+ * @param num_of_segments size of the segment_size array
+ * @param target Target memory type to allocate.
+ * @param flags Memory flags (cacheable, writable, etc).
+ * @return array of simaai_memory_t pointer, with size of the array equal to num_of_segments
+               or NULL in case of failure. each pointer represents the segment allocated from segment_size
+               array.
+ */
+simaai_memory_t **simaai_memory_alloc_segments_flags(uint32_t *segments,
+       uint32_t num_of_segments, int target, int flags);
 
 /**
  * @brief Attach to the previously allocated memory chunk by physical address.
@@ -79,6 +108,15 @@ simaai_memory_t *simaai_memory_attach(uint64_t phys_addr);
  * @return None.
  */
 void simaai_memory_free(simaai_memory_t *memory);
+
+/**
+ * @brief Free the previously allocated memory segments.
+ *
+ * @param segments array of segments to be freed
+ * @param num_of_segments size of the segment array
+ * @return None.
+ */
+void simaai_memory_free_segments(simaai_memory_t **segments, unsigned int num_of_segments);
 
 /**
  * @brief Map the previously allocated memory chunk.

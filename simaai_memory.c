@@ -28,6 +28,8 @@ struct simaai_memory_t {
 	uint64_t bus_addr;
 	/* Target allocation hardware */
 	uint64_t target;
+	/* indicates offset from parent segment */
+	uint64_t offset;
 };
 
 static int fd = -1;
@@ -50,7 +52,8 @@ simaai_memory_t *simaai_memory_alloc_flags(unsigned int size, int target, int fl
 		return NULL;
 	}
 
-	alloc_args.size = size;
+	alloc_args.num_of_segments = 1;
+	alloc_args.size[0] = size;
 	alloc_args.flags = flags;
 	alloc_args.target = target;
 	ret = ioctl(fd, SIMAAI_IOC_MEM_ALLOC_COHERENT, &alloc_args);
@@ -61,9 +64,10 @@ simaai_memory_t *simaai_memory_alloc_flags(unsigned int size, int target, int fl
 	}
 
 	memory->target = target;
-	memory->size = alloc_args.size;
-	memory->phys_addr = alloc_args.phys_addr;
-	memory->bus_addr = alloc_args.bus_addr;
+	memory->offset = alloc_args.offset[0];
+	memory->size = alloc_args.size[0];
+	memory->phys_addr = alloc_args.phys_addr[0];
+	memory->bus_addr = alloc_args.bus_addr[0];
 
 	return memory;
 }
@@ -71,6 +75,75 @@ simaai_memory_t *simaai_memory_alloc_flags(unsigned int size, int target, int fl
 simaai_memory_t *simaai_memory_alloc(unsigned int size, int target)
 {
 	return simaai_memory_alloc_flags(size, target, SIMAAI_MEM_FLAG_DEFAULT);
+}
+
+static void free_segment_memory(struct simaai_memory_t **segments_memory, unsigned int last_index)
+{
+	unsigned int iter = 0;
+	for(iter = 0; iter < last_index; iter++)
+		free(segments_memory[iter]);
+}
+
+simaai_memory_t **simaai_memory_alloc_segments_flags(uint32_t *segments, uint32_t num_of_segments,
+		int target, int flags)
+{
+
+	simaai_memory_t **segments_memory;
+	simaai_memory_t *memory;
+	struct simaai_alloc_args alloc_args = {0};
+	int ret;
+	unsigned int iter = 0;
+
+	if (num_of_segments > MAX_SEGMENTS)
+		return NULL;
+
+	segments_memory = (simaai_memory_t **)calloc(num_of_segments, sizeof(simaai_memory_t *));
+	if (!segments_memory)
+		return NULL;
+
+	if(fd < 0)
+		fd = open(SIMAAI_ALLOCATOR, O_RDWR | O_SYNC);
+
+	if (fd < 0) {
+		free(segments_memory);
+		return NULL;
+	}
+
+	alloc_args.num_of_segments = num_of_segments;
+	alloc_args.flags = flags;
+	alloc_args.target = target;
+	for (iter  = 0; iter < num_of_segments; iter++)
+		alloc_args.size[iter] = segments[iter];
+
+	ret = ioctl(fd, SIMAAI_IOC_MEM_ALLOC_COHERENT, &alloc_args);
+	if (ret < 0) {
+		free(segments_memory);
+		return NULL;
+	}
+
+	for (iter = 0; iter < num_of_segments; iter++) {
+
+		memory = calloc(1, sizeof(*memory));
+		if (!memory) {
+			free_segment_memory(segments_memory, iter);
+			free(segments_memory);
+			return NULL;
+		}
+
+		segments_memory[iter] = memory;
+		memory->target = target;
+		memory->offset = alloc_args.offset[iter];
+		memory->size = alloc_args.size[iter];
+		memory->phys_addr = alloc_args.phys_addr[iter];
+		memory->bus_addr = alloc_args.bus_addr[iter];
+	}
+
+	return segments_memory;
+}
+
+simaai_memory_t **simaai_memory_alloc_segments(uint32_t *segments, uint32_t num_of_segments, int target)
+{
+	return simaai_memory_alloc_segments_flags(segments, num_of_segments, target, SIMAAI_MEM_FLAG_DEFAULT);
 }
 
 simaai_memory_t *simaai_memory_attach(uint64_t phys_addr)
@@ -95,6 +168,7 @@ simaai_memory_t *simaai_memory_attach(uint64_t phys_addr)
 		return NULL;
 	}
 
+	memory->offset = info.offset;
 	memory->target = info.target;
 	memory->size = info.size;
 	memory->phys_addr = info.phys_addr;
@@ -117,11 +191,40 @@ void simaai_memory_free(simaai_memory_t *memory)
 	}
 
 	if (memory->vaddr)
-		munmap(memory->vaddr, memory->size);
-
-	free_args.phys_addr = memory->phys_addr;
+		munmap(memory->vaddr - memory->offset, memory->size);
+	free_args.num_of_segments = 1;
+	free_args.phys_addr[0] = memory->phys_addr;
 	ioctl(fd, SIMAAI_IOC_MEM_FREE, &free_args);
 	free(memory);
+}
+
+void simaai_memory_free_segments(simaai_memory_t **segments, unsigned int num_of_segments)
+{
+	struct simaai_free_args free_args = {0};
+	unsigned int iter = 0;
+
+	assert(segments);
+
+	if(fd < 0)
+		fd = open(SIMAAI_ALLOCATOR, O_RDWR | O_SYNC);
+
+	if (fd < 0) {
+		return;
+	}
+
+	free_args.num_of_segments = num_of_segments;
+	for (iter = 0; iter < num_of_segments; iter++) {
+
+		assert(segments[iter]);
+		if (segments[iter]->vaddr)
+			munmap(segments[iter]->vaddr - segments[iter]->offset, segments[iter]->size);
+		free_args.phys_addr[iter] = segments[iter]->phys_addr;
+
+		free(segments[iter]);
+	}
+
+	ioctl(fd, SIMAAI_IOC_MEM_FREE, &free_args);
+	free(segments);
 }
 
 void *simaai_memory_map(simaai_memory_t *memory)
@@ -135,15 +238,15 @@ void *simaai_memory_map(simaai_memory_t *memory)
 		return NULL;
 	}
 
-	void *vaddr = mmap(NULL, memory->size, PROT_READ | PROT_WRITE,
-			   MAP_SHARED, fd,  memory->phys_addr);
+	void *vaddr = mmap(NULL, (memory->size + memory->offset), PROT_READ | PROT_WRITE,
+			   MAP_SHARED, fd, (memory->phys_addr - memory->offset));
 
 	if (vaddr == MAP_FAILED)
 		vaddr = NULL;
 	else
-		memory->vaddr = vaddr;
+		memory->vaddr = (uint64_t)vaddr + memory->offset;
 
-	return vaddr;
+	return memory->vaddr;
 }
 
 void simaai_memory_unmap(simaai_memory_t *memory)
@@ -151,7 +254,7 @@ void simaai_memory_unmap(simaai_memory_t *memory)
 	assert(memory);
 
 	if (memory->vaddr) {
-		munmap(memory->vaddr, memory->size);
+		munmap(memory->vaddr - memory->offset, memory->size + memory->offset);
 		memory->vaddr = NULL;
 	}
 }
