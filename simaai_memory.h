@@ -216,6 +216,29 @@ void simaai_memory_invalidate_cache(simaai_memory_t *memory);
  */
 void simaai_memory_invalidate_cache_part(simaai_memory_t *memory, unsigned int offset, unsigned int size);
 
+
+/**
+ * @brief copy  the memory chunk from source to destination:
+ *
+ * @param dst The context of the memory chunk to be copied.
+ * @param src The context of the source memory chunk.
+ * @return array of  destination simaai_memory_t pointer
+               or NULL in case of failure.
+ */
+simaai_memory_t *simaai_memcpy(simaai_memory_t *dst, simaai_memory_t *src);
+/**
+ * @brief copy  the memory chunk from source to destination:
+ *
+ * @param dst The context of the memory chunk to be copied.
+ * @param dst_offset Memory chunk offset inside the destination buffer.
+ * @param src The context of the source memory chunk.
+ * @param src_offset Memory chunk offset inside the source buffer.
+ * @param size Memory chunk size to be copied.
+ * @return array of  destination simaai_memory_t pointer
+               or NULL in case of failure.
+ */
+simaai_memory_t*  simaai_memcpy_part(simaai_memory_t *dst, uint64_t dst_offset, simaai_memory_t *src, uint64_t src_offset, uint64_t size);
+
 #ifdef __cplusplus
 }
 #endif /* extern "C" { */

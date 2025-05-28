@@ -18,18 +18,18 @@
 #define SIMAAI_CACHE_LINE_SIZE	(64)
 
 struct simaai_memory_t {
-	/* Virtual address of memory chunk */
-	void *vaddr;
-	/* Size of memory chunk */
-	unsigned int size;
-	/* Physical address of the memory chunk */
-	uint64_t phys_addr;
-	/* Bus address of the memory chunk */
-	uint64_t bus_addr;
-	/* Target allocation hardware */
-	uint64_t target;
-	/* indicates offset from parent segment */
-	uint64_t offset;
+        /* Virtual address of memory chunk */
+        void *vaddr;
+        /* Size of memory chunk */
+        unsigned int size;
+        /* Physical address of the memory chunk */
+        uint64_t phys_addr;
+        /* Bus address of the memory chunk */
+        uint64_t bus_addr;
+        /* Target allocation hardware */
+        uint64_t target;
+        /* indicates offset from parent segment */
+        uint64_t offset;
 };
 
 static int fd = -1;
@@ -356,4 +356,54 @@ void simaai_memory_invalidate_cache_part(simaai_memory_t *memory,
 		unsigned int offset, unsigned int size)
 {
 	simaai_memory_op_cache(memory, offset, size, 'i');
+}
+
+simaai_memory_t*  simaai_memcpy(simaai_memory_t *dst, simaai_memory_t *src)
+{
+	struct simaai_memcpy_args memcpy_args = {0};
+	int ret;
+
+	if(fd < 0)
+		fd = open(SIMAAI_ALLOCATOR, O_RDWR | O_SYNC);
+
+	if (fd < 0) {
+		return NULL;
+	}
+
+	memcpy_args.src_addr = src->phys_addr;
+	memcpy_args.dst_addr = dst->phys_addr;
+	memcpy_args.size = (src->size > dst->size) ? (dst->size): (src->size);
+
+	ret = ioctl(fd, SIMAAI_IOC_MEMCPY, &memcpy_args);
+	if (ret < 0) {
+		return NULL;
+	}
+
+	return dst;
+}
+
+simaai_memory_t*  simaai_memcpy_part(simaai_memory_t *dst, uint64_t dst_offset, simaai_memory_t *src, uint64_t src_offset, uint64_t size)
+{
+	struct simaai_memcpy_args memcpy_args = {0};
+	int ret;
+
+	if ( ((dst_offset + size) > (dst->size))|| ((src_offset + size) > (src->size))) 
+		return NULL;
+
+	if(fd < 0)
+		fd = open(SIMAAI_ALLOCATOR, O_RDWR | O_SYNC);
+
+	if (fd < 0) {
+		return NULL;
+	}
+
+	memcpy_args.src_addr = src->phys_addr + src_offset;
+	memcpy_args.dst_addr = dst->phys_addr + dst_offset;
+	memcpy_args.size = size;
+	ret = ioctl(fd, SIMAAI_IOC_MEMCPY, &memcpy_args);
+	if (ret < 0) {
+		return NULL;
+	}
+
+	return dst;
 }
