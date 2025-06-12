@@ -17,13 +17,20 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <time.h>
+#include <pthread.h>
 
 #include "simaai_memory.h"
+
+#define NUM_THREADS 100
 
 struct args {
 	char chr;
 	long int size;
 	char target;
+	int  mcpSrc_target;
+	int  mcpDst_target;
+	long int NumThread;
+	long int NumIteration;
 	unsigned int flags;
 	char use_segments;
 };
@@ -39,6 +46,10 @@ static int parse_args(const int argc, char *const argv[], struct args *args)
 		{ "segments", no_argument,     NULL, 'f' },
 		{ "cached", no_argument,       NULL, 'c' },
 		{ "readonly", no_argument,     NULL, 'r' },
+		{ "mcpSrc", required_argument, NULL, 'x' },
+		{ "mcpDst", required_argument, NULL, 'y' },
+		{ "pthreadNum", required_argument, NULL, 'p' },
+		{ "iteration",  required_argument, NULL, 'i' },
 		{ 0,        0,                 0,     0  }
 	};
 	const char usage[] =
@@ -51,14 +62,18 @@ static int parse_args(const int argc, char *const argv[], struct args *args)
 		"  -t, --target=[0..6] target to allocate memory from, CMA (0) or OCM (1) DMS0-3 (2-5) EV (6)\n"
 		"  -f, --segments      use segments based array\n"
 		"  -c, --cached        map memory as cached\n"
-		"  -r, --readonly      map memory as readonly\n";
+		"  -r, --readonly      map memory as readonly\n"
+		"  -x, --mcpSrc        memcpy source target[0-6]\n"
+		"  -y, --mcpDst        memcpy destination target[0-6]\n"
+		"  -p, --pthreadNum    number of pthreads to execute in parallel for memcpy \n"
+		"  -i, --iteration     number of memcpy iterations in each thread \n";
 	int option_index;
 	int c;
 	args->use_segments = 0;
 
 	while (1) {
 		option_index = 0;
-		c = getopt_long(argc, argv, "hv:s:t:crf", long_options, &option_index);
+		c = getopt_long(argc, argv, "hv:s:t:x:y:p:i:crf", long_options, &option_index);
 
 		if (c == -1)
 			break;
@@ -85,6 +100,34 @@ static int parse_args(const int argc, char *const argv[], struct args *args)
 			args->target = strtol(optarg, NULL, 10);
 			if ((args->target < 0) || (args->target > 6)) {
 				fprintf(stderr, "Invalid target\n");
+				return -1;
+			}
+			break;
+		case 'x':
+			args->mcpSrc_target = strtol(optarg, NULL, 10);
+			if ((args->mcpSrc_target < 0) || (args->mcpSrc_target > 6)) {
+				fprintf(stderr, "Invalid memcpy target\n");
+				return -1;
+			}
+			break;
+		case 'y':
+			args->mcpDst_target = strtol(optarg, NULL, 10);
+			if ((args->mcpDst_target < 0) || (args->mcpDst_target > 6)) {
+				fprintf(stderr, "Invalid memcpy target\n");
+				return -1;
+			}
+			break;
+		case 'p':
+			args->NumThread = strtol(optarg, NULL, 10);
+			if (args->NumThread < 0) {
+				fprintf(stderr, "Invalid size value\n");
+				return -1;
+			}
+			break;
+		case 'i':
+			args->NumIteration = strtol(optarg, NULL, 10);
+			if (args->NumIteration < 0) {
+				fprintf(stderr, "Invalid size value\n");
 				return -1;
 			}
 			break;
@@ -194,6 +237,121 @@ static void verify_memory_wrapper(simaai_memory_t *mem_out, const struct args *a
 	free(data);
 }
 
+static void verify_memcpy_wrapper(simaai_memory_t *mem_dst, simaai_memory_t *mem_src, const struct args *args)
+{
+	simaai_memory_t *cp_buf = NULL;
+	void *vaddr_out = NULL;
+	void  *vaddr_in = NULL;
+	uint32_t *vaddr_ptr = NULL;
+	int i;
+	unsigned int size;
+	struct timespec start, end;
+	double elapsed_time;
+	int random_num;
+	int random_char;
+
+	vaddr_out = simaai_memory_map(mem_dst);
+	if (!vaddr_out) {
+		fprintf(stderr, "Output memory mapping failed: %s\n",
+				strerror(errno));
+		goto end;
+	}
+
+	vaddr_in = simaai_memory_map(mem_src);
+	if (!vaddr_in) {
+		fprintf(stderr, "Input memory mapping failed: %s\n",
+				strerror(errno));
+		goto end;
+	}
+
+	srand(time(NULL));
+	random_num = rand() % 26;
+	random_char = 'a' + random_num;
+	memset(vaddr_in, random_char, simaai_memory_get_size(mem_src));
+	if(args->flags & SIMAAI_MEM_FLAG_CACHED)
+		simaai_memory_flush_cache(mem_src);
+
+	clock_gettime(CLOCK_MONOTONIC, &start);
+	cp_buf = simaai_memcpy(mem_dst, mem_src);
+	clock_gettime(CLOCK_MONOTONIC, &end);
+	if (!cp_buf) {
+		fprintf(stderr, "simaai_memcpy failed: %s\n",
+				strerror(errno));
+		goto end;
+	}
+	elapsed_time = (end.tv_sec - start.tv_sec) +
+                   (end.tv_nsec - start.tv_nsec) / 1e9;
+	fprintf(stdout, "memcpy elapsetime for %lld bytes:%.9f sec\n",args->size, elapsed_time);
+
+	if(args->flags & SIMAAI_MEM_FLAG_CACHED)
+		simaai_memory_invalidate_cache(mem_dst);
+
+	if (memcmp(vaddr_out, vaddr_in, size) == 0) {
+		fprintf(stdout,"memory copy through simaai_memcpy is passed.\n");
+	} else {
+		fprintf(stdout, "memory copy through simaai_memcpy has mismatches.\n");
+	}
+
+end:
+	if (vaddr_out)
+		simaai_memory_unmap(mem_dst);
+	if (vaddr_in)
+		simaai_memory_unmap(mem_src);
+}
+
+static void test_memcpy_wrapper(const struct args *args)
+{
+	simaai_memory_t *mem_src;
+	simaai_memory_t *mem_dst;
+
+	mem_src = simaai_memory_alloc(args->size, args->mcpSrc_target);
+	if (!mem_src) {
+		fprintf(stderr, "src memory allocation failed: %s\n",
+				strerror(errno));
+		goto end;
+	}
+	mem_dst = simaai_memory_alloc(args->size, args->mcpDst_target);
+	if (!mem_dst) {
+		fprintf(stderr, "dst  memory allocation failed: %s\n",
+				strerror(errno));
+		goto end;
+	}
+	fprintf("src_addr:0x%llx, dst_addr:0x%llx \n", simaai_memory_get_phys(mem_src), simaai_memory_get_phys(mem_dst));
+	verify_memcpy_wrapper(mem_dst, mem_src, args);
+end:
+	if (mem_src)
+		simaai_memory_free(mem_src);
+	if (mem_dst)
+		simaai_memory_free(mem_dst);
+}
+
+void *memcpy_thread(void *arg)
+{
+	const struct args *args_ptr = (const struct args *)arg;
+	long int count = args_ptr->NumIteration;
+
+	for(int i = 0; i < count; i++) {
+		test_memcpy_wrapper(args_ptr);
+	}
+}
+
+static void test_multithread_memcpy_wrapper(const struct args *args)
+{
+	pthread_t threads[NUM_THREADS];
+	int thread_ids[NUM_THREADS];
+	int max_thread = args->NumThread;
+	int i;
+	for(i = 0; i < max_thread; i++) {
+		thread_ids[i] = i;
+		pthread_create(&threads[i], NULL, memcpy_thread, args);
+	}
+
+	for (i = 0; i < max_thread; i++) {
+        pthread_join(threads[i], NULL);
+    }
+
+}
+
 static void test_memory_wrapper(const struct args *args)
 {
 	simaai_memory_t **segments_arr = NULL;
@@ -243,11 +401,16 @@ static void test_memory_wrapper(const struct args *args)
 int main(int argc, char *argv[])
 {
 	struct args args = { 0 };
-
+	
+	args.mcpSrc_target = args.mcpDst_target = -1;
+	args.NumThread = args.NumIteration = 1; // default values for memcpy test
 	if (parse_args(argc, argv, &args) != 0)
 		return EXIT_FAILURE;
 
-	test_memory_wrapper(&args);
+	if((args.mcpSrc_target != -1) && (args.mcpDst_target != -1))
+		test_multithread_memcpy_wrapper(&args);
+	else
+		test_memory_wrapper(&args);
 
 	return EXIT_SUCCESS;
 }
