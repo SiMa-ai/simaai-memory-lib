@@ -1,0 +1,18 @@
+Source: simaai-memory-lib
+Section: libs
+Priority: optional
+Maintainer: SiMa.ai Technologies
+Build-Depends: linux-libc-dev:arm64 (= 6.18.3), debhelper-compat (= 12)
+Standards-Version: 2.1.0
+Rules-Requires-Root: no
+
+Package: simaai-memory-lib
+Architecture: arm64
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: SiMa.ai custom memory allocator
+Homepage: https://sima.ai
+
+Package: simaai-memory-lib-dev
+Architecture: arm64
+Depends: simaai-memory-lib (= ${binary:Version}), ${misc:Depends}
+Description: SiMa.ai custom memory allocator development files

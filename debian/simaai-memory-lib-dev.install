@@ -1,0 +1,4 @@
+usr/include/simaai/
+usr/lib/*/libsimaaimem.so
+usr/lib/*/pkgconfig/
+usr/lib/*/cmake/simaai-memory-lib/

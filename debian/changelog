@@ -1,0 +1,6 @@
+simaai-memory-lib (2.1.0) unstable; urgency=medium
+
+  * Initial release.
+  * Build shared library libsimaaimem.so
+
+ -- Nikunj Kela <nikunj.kela@sima.ai>  Mon, 20 Jan 2026 13:30:00 -0800
