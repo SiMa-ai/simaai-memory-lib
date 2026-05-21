@@ -3,7 +3,7 @@ Section: libs
 Priority: optional
 Maintainer: SiMa.ai Technologies
 Build-Depends: linux-libc-dev:arm64 (= 6.18.3), debhelper-compat (= 12)
-Standards-Version: 2.1.0
+Standards-Version: 2.1.1
 Rules-Requires-Root: no
 
 Package: simaai-memory-lib

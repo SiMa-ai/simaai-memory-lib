@@ -1,4 +1,4 @@
-simaai-memory-lib (2.1.0) unstable; urgency=medium
+simaai-memory-lib (2.1.1) unstable; urgency=medium
 
   * Initial release.
   * Build shared library libsimaaimem.so

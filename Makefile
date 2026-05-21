@@ -10,7 +10,7 @@ CFLAGS   = -Wall -O2 -I .
 
 # Library
 SONAME_MAJOR := 2
-VERSION      := 2.1.0
+VERSION      := 2.1.1
 LIBNAME   = simaaimem
 LIBSONAME = $(addprefix lib, $(addsuffix .so, $(LIBNAME)))
 LIBSRCS   = simaai_memory.c
